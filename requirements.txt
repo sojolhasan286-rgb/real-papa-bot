@@ -1,5 +1,5 @@
-telethon
-pytgcalls>=3.0.0
+telethon==1.34.0
+pytgcalls==3.0.0.dev24
 edge-tts
 requests
 aiohttp
