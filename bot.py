@@ -12,7 +12,7 @@ from telethon.sessions import StringSession
 # ================= আপনার কনফিগারেশন =================
 API_ID = 37955730
 API_HASH = "04e2ff804f416307a54eb9ab2931795f"
-BOT_TOKEN = "8386397372:AAG43W1Eom0ug_kqGBBjypdn2ZwtUUwynNA"
+BOT_TOKEN = "8900620215:AAEABOrr5o5xFMJYMXjkUv_Xoy-V89Ev38k"
 SESSION_STRING = "1BVtsOKkBuzAgqgaS2uS3BMSafTSMr6UH67vSqIUgExv8fS_hBPnvE1GrXnC3QNU1JMAqmKGqSUO8SvusFpbeoInEG51E_2Kqk4mBPEAvyUry7K1JpoajAiL8hR0qJufIR6HL_yXYGLdfP7azPd2UmDpm5yuZWZ9cwiGQX1LzWGRaMhwgR1WwiiG6IOHyQG-Wzf7l0VJw7aapbB1lergh7mrF7CCZ6zlVbCklz6PxvaQMHy13Yy1Bw7S2bxZuBAYAem7EN_9TMkJ1dd__1TDmSZLp0pnI8a8He_jh3w_tbEMISHJjMZaOd-6sgEhQLc8nJ6qCixDJx-0fBSJIe4WzviRSN_QMBnk="
 
 # সিগন্যাল API
