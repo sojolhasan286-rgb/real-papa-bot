@@ -1,9 +1,13 @@
 FROM python:3.9-slim
 
+# FFmpeg, বিল্ড টুলস এবং NodeJS ইনস্টল
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
+    curl \
     build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
