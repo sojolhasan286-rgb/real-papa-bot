@@ -619,7 +619,7 @@ async def text_handler(event):
         m_text, buttons = get_main_menu()
         await event.respond(m_text, buttons=buttons)
 
-# ক্লাউড সার্ভার সচল রাখা
+# ক্লাউড সার্ভার সচল রাখা (Render Port 8080)
 async def keep_alive():
     server = web.Application()
     server.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
@@ -628,10 +628,13 @@ async def keep_alive():
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-
 async def main():
     global bot, assistant, call_py
 
+    # ১. সবার আগে ক্লাউড সার্ভার পোর্ট ওপেন করা (যাতে Render সাথে সাথে ডিটেক্ট করে)
+    await keep_alive()
+
+    # ২. টেলিগ্রাম ও ভয়েস ক্লায়েন্ট শুরু
     bot = TelegramClient("signal_bot_session", API_ID, API_HASH)
     assistant = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
     call_py = PyTgCalls(assistant)
@@ -643,7 +646,7 @@ async def main():
     await bot.start(bot_token=BOT_TOKEN)
     await assistant.start()
     await call_py.start()
-    await keep_alive()
+    
     print("==================================================")
     print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE!")
     print("==================================================")
@@ -651,3 +654,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
