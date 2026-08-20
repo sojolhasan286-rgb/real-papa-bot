@@ -1,19 +1,23 @@
-FROM python:3.10-slim
+FROM python:3.9-slim-buster
 
-RUN apt-get update && apt-get install -y \
+# প্রয়োজনীয় সিস্টেম ড্রাইভার ও FFmpeg
+RUN apt-get update -y && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     gcc \
     g++ \
     make \
+    python3-dev \
     libffi-dev \
     libssl-dev \
-    python3-dev \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# সেটআপ বিল্ড টুলস
+RUN pip install --no-cache-dir -U pip setuptools wheel
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
