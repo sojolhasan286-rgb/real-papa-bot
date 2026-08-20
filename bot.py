@@ -4,22 +4,21 @@ import json
 from aiohttp import web
 import edge_tts
 from pytgcalls import PyTgCalls
-from pytgcalls.types import MediaStream
+from pytgcalls.types.input_stream import AudioPiped
 import requests
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
-# ================= আপনার নতুন কনফিগারেশন =================
+# ================= আপনার কনফিগারেশন =================
 API_ID = 37955730
 API_HASH = "04e2ff804f416307a54eb9ab2931795f"
-BOT_TOKEN = "8900620215:AAEABOrr5o5xFMJYMXjkUv_Xoy-V89Ev38k"
+BOT_TOKEN = "8386397372:AAG43W1Eom0ug_kqGBBjypdn2ZwtUUwynNA"
 SESSION_STRING = "1BVtsOKkBuzAgqgaS2uS3BMSafTSMr6UH67vSqIUgExv8fS_hBPnvE1GrXnC3QNU1JMAqmKGqSUO8SvusFpbeoInEG51E_2Kqk4mBPEAvyUry7K1JpoajAiL8hR0qJufIR6HL_yXYGLdfP7azPd2UmDpm5yuZWZ9cwiGQX1LzWGRaMhwgR1WwiiG6IOHyQG-Wzf7l0VJw7aapbB1lergh7mrF7CCZ6zlVbCklz6PxvaQMHy13Yy1Bw7S2bxZuBAYAem7EN_9TMkJ1dd__1TDmSZLp0pnI8a8He_jh3w_tbEMISHJjMZaOd-6sgEhQLc8nJ6qCixDJx-0fBSJIe4WzviRSN_QMBnk="
 
 # সিগন্যাল API
 API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
 # =======================================================
 
-# ডাটা সেভ ফাইল
 CHANNELS_FILE = "channels.json"
 CONFIG_FILE = "dialogue_config.json"
 
@@ -57,7 +56,7 @@ def save_config(data):
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# ================= HTML এর ডাটাবেস প্যাটার্ন =================
+# ================= HTML-এর আসল ডাটাবেস প্যাটার্ন =================
 PATTERN_DB = {
     "SSBSSBSBB": "BIG", "BSBSBBSBS": "SMALL", "BSBSBBBSS": "BIG", "SSSBBBSSS": "SMALL", "SSSBSBBBS": "SMALL",
     "SBSSBSSBB": "BIG", "SBSSBSSBS": "BIG", "SBSBSSSBS": "SMALL", "SBBSBSSBS": "BIG", "BBSBBSSBB": "SMALL",
@@ -281,9 +280,18 @@ async def play_in_live(audio_file_path):
     if not active_chat_id:
         return
     try:
-        await call_py.play(int(active_chat_id), MediaStream(audio_file_path))
-    except Exception as e:
-        print(f"[Live Play Error]: {repr(e)}")
+        await call_py.join_group_call(
+            int(active_chat_id),
+            AudioPiped(audio_file_path)
+        )
+    except Exception:
+        try:
+            await call_py.change_stream(
+                int(active_chat_id),
+                AudioPiped(audio_file_path)
+            )
+        except Exception as err:
+            print(f"[Live Play Error]: {repr(err)}")
 
 # ================= লাইভ সিগন্যাল লুপ =================
 async def wingo_1min_live_engine():
@@ -555,7 +563,7 @@ async def callback_handler(event):
         is_running = False
         try:
             if active_chat_id:
-                await call_py.leave_call(int(active_chat_id))
+                await call_py.leave_group_call(int(active_chat_id))
         except Exception as e:
             print(f"[Stop Call Error]: {e}")
 
