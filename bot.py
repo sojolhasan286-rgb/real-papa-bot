@@ -252,7 +252,7 @@ def process_ensemble_prediction(history_list):
 
     return final_pred, confidence
 
-# ================= নতুন ও মিষ্টি বাংলাদেশি ফিমেল ভয়েস =================
+# ================= নতুন ও মিষ্টি ফিমেল ভয়েস =================
 async def generate_sweet_girl_voice(text, filename=None, pitch="+1Hz", rate="+0%"):
     if not filename:
         filename = f"voice_{uuid.uuid4().hex[:8]}.mp3"
@@ -286,8 +286,8 @@ async def play_in_live(audio_file_path):
         return
     try:
         if call_py:
+            from pytgcalls.types.input_stream import AudioPiped
             try:
-                from pytgcalls.types.input_stream import AudioPiped
                 await call_py.join_group_call(
                     int(active_chat_id),
                     AudioPiped(audio_file_path)
@@ -298,7 +298,7 @@ async def play_in_live(audio_file_path):
                     AudioPiped(audio_file_path)
                 )
     except Exception as err:
-        print(f"[Audio Stream Log]: {err}")
+        print(f"[Audio Stream]: {err}")
 
 async def fetch_lottery_history():
     try:
@@ -630,7 +630,7 @@ async def text_handler(event):
         m_text, buttons = get_main_menu()
         await event.respond(m_text, buttons=buttons)
 
-# ================= Render Web Server =================
+# ================= Render Web Server ও অ্যান্টি-স্লিপ পিং =================
 async def start_web_server():
     server = web.Application()
     server.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
@@ -640,30 +640,43 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-# ================= মেইন ফাংশন =================
-async def main():
-    global call_py
-    
-    # ১. পোর্ট বাইন্ডিং
-    await start_web_server()
+async def auto_ping_loop():
+    port = int(os.environ.get("PORT", 8080))
+    while True:
+        await asyncio.sleep(240)  # প্রতি ৪ মিনিট পর পর পিং করবে যাতে স্লিপ না হয়
+        try:
+            async with aiohttp.ClientSession() as session:
+                await session.get(f"http://127.0.0.1:{port}/")
+        except Exception:
+            pass
 
-    # ২. টেলিগ্রাম বট ও অ্যাসিস্ট্যান্ট ক্লায়েন্ট চালু
-    await bot.start(bot_token=BOT_TOKEN)
-    await assistant.start()
-    
-    # ৩. ভয়েস কল ক্লায়েন্ট শুরু
+async def init_assistant_and_calls():
+    global call_py
     try:
+        await assistant.start()
         from pytgcalls import PyTgCalls
         call_py = PyTgCalls(assistant)
         await call_py.start()
+        print(">> Assistant and Voice Calls ready!")
     except Exception as e:
-        print(f"[PyTgCalls Start Notice]: {e}")
-    
+        print(f"[Assistant Init Notice]: {e}")
+
+# ================= মেইন ফাংশন =================
+async def main():
+    # ১. পোর্ট চালু
+    await start_web_server()
+    asyncio.create_task(auto_ping_loop())
+
+    # ২. টেলিগ্রাম বট স্টার্ট (সবার আগে বট স্টার্ট হবে যেন /start কাজ করে)
+    await bot.start(bot_token=BOT_TOKEN)
     print("==================================================")
-    print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE (CRASH-PROOF)!")
+    print(" 🎛️ BOT CONTROLLER ONLINE! (/start READY)")
     print("==================================================")
 
-    # বটকে সার্বক্ষণিক চালু রাখা
+    # ৩. ব্যাকগ্রাউন্ডে অ্যাসিস্ট্যান্ট ও ভয়েস কানেক্ট
+    asyncio.create_task(init_assistant_and_calls())
+
+    # বটকে চালু রাখা
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
