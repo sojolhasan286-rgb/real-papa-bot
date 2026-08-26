@@ -5,10 +5,8 @@ import uuid
 import aiohttp
 from aiohttp import web
 import edge_tts
-from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped
 from telethon import TelegramClient, events, Button
-from telethon.sessions import StringSession
+from telethon.sessions import StringSession, MemorySession
 
 # ================= আপনার কনফিগারেশন =================
 API_ID = 37955730
@@ -268,10 +266,10 @@ async def generate_sweet_girl_voice(text, filename=None, pitch="+1Hz", rate="+0%
         print(f"[TTS Error]: {e}")
         return None
 
-# ================= ক্লায়েন্ট ইনিশিয়ালাইজেশন =================
-bot = TelegramClient("bot_session", API_ID, API_HASH)
+# ================= ক্লায়েন্ট কনফিগারেশন =================
+bot = TelegramClient(MemorySession(), API_ID, API_HASH)
 assistant = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-call_py = PyTgCalls(assistant)
+call_py = None
 
 is_running = False
 active_chat_id = None
@@ -287,18 +285,20 @@ async def play_in_live(audio_file_path):
     if not active_chat_id or not audio_file_path or not os.path.exists(audio_file_path):
         return
     try:
-        await call_py.join_group_call(
-            int(active_chat_id),
-            AudioPiped(audio_file_path)
-        )
-    except Exception:
-        try:
-            await call_py.change_stream(
-                int(active_chat_id),
-                AudioPiped(audio_file_path)
-            )
-        except Exception as err:
-            print(f"[Audio Stream Warning]: {err}")
+        if call_py:
+            try:
+                from pytgcalls.types.input_stream import AudioPiped
+                await call_py.join_group_call(
+                    int(active_chat_id),
+                    AudioPiped(audio_file_path)
+                )
+            except Exception:
+                await call_py.change_stream(
+                    int(active_chat_id),
+                    AudioPiped(audio_file_path)
+                )
+    except Exception as err:
+        print(f"[Audio Stream Log]: {err}")
 
 async def fetch_lottery_history():
     try:
@@ -313,7 +313,7 @@ async def fetch_lottery_history():
         print(f"[API Fetch Error]: {err}")
     return []
 
-# ================= লাইভ সিগন্যাল লুপ =================
+# ================= লাইভ সিগন্যাল ইঞ্জিন =================
 async def wingo_1min_live_engine():
     global last_period, current_pred, pending_check, is_running, active_chat_id
     print(f">> Signal Engine চালু: {active_chat_title} ({active_chat_id})")
@@ -569,7 +569,7 @@ async def callback_handler(event):
 
         is_running = False
         try:
-            if active_chat_id:
+            if active_chat_id and call_py:
                 await call_py.leave_group_call(int(active_chat_id))
         except Exception as e:
             print(f"[Stop Call Error]: {e}")
@@ -631,7 +631,7 @@ async def text_handler(event):
         await event.respond(m_text, buttons=buttons)
 
 # ================= Render Web Server =================
-async def keep_alive():
+async def start_web_server():
     server = web.Application()
     server.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
     runner = web.AppRunner(server)
@@ -642,25 +642,29 @@ async def keep_alive():
 
 # ================= মেইন ফাংশন =================
 async def main():
-    await keep_alive()
+    global call_py
+    
+    # ১. পোর্ট বাইন্ডিং
+    await start_web_server()
 
-    # ১. টেলিগ্রাম বট ও অ্যাসিস্ট্যান্ট ক্লায়েন্ট চালু
+    # ২. টেলিগ্রাম বট ও অ্যাসিস্ট্যান্ট ক্লায়েন্ট চালু
     await bot.start(bot_token=BOT_TOKEN)
     await assistant.start()
     
-    # ২. ভয়েস কল ক্লায়েন্ট শুরু
+    # ৩. ভয়েস কল ক্লায়েন্ট শুরু
     try:
+        from pytgcalls import PyTgCalls
+        call_py = PyTgCalls(assistant)
         await call_py.start()
     except Exception as e:
         print(f"[PyTgCalls Start Notice]: {e}")
     
     print("==================================================")
-    print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE & READY!")
+    print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE (CRASH-PROOF)!")
     print("==================================================")
 
     # বটকে সার্বক্ষণিক চালু রাখা
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
