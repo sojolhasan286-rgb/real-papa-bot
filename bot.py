@@ -1,11 +1,12 @@
 import asyncio
 import os
 import json
+import uuid
+import aiohttp
 from aiohttp import web
 import edge_tts
 from pytgcalls import PyTgCalls
 from pytgcalls.types.input_stream import AudioPiped
-import requests
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 
@@ -23,40 +24,40 @@ CHANNELS_FILE = "channels.json"
 CONFIG_FILE = "dialogue_config.json"
 
 DEFAULT_CONFIG = {
-    "welcome": "আসসালামু আলাইকুম, সবাই কেমন আছেন? আমি হলাম এআই বট। এখন উইনগো ১ মিনিটে সিগন্যাল দিবো, সবাই রেডি হন।",
-    "signal_template": "সবাই উইনগো ১ মিনিট মার্কেটে ট্রেড করুন {signal}-এ! পিরিয়ড নাম্বার {period}। আমাদের সিগন্যালের কনফিডেন্স {confidence} পার্সেন্ট! সবাই অপেক্ষা করুন। সবাইকে উম্মাহ উম্মাহ! লাভ ইউ অল বেবি!",
+    "welcome": "আসসালামু আলাইকুম, সবাই কেমন আছেন? আমি আপনাদের সিগন্যাল এআই। এখন উইনগো ১ মিনিটে সিগন্যাল শুরু হচ্ছে, সবাই রেডি থাকুন।",
+    "signal_template": "সবাই উইনগো ১ মিনিটে ট্রেড করুন {signal}-এ! পিরিয়ড নাম্বার {period}। কনফিডেন্স {confidence} পার্সেন্ট! শুভকামনা সবাইকে!",
     "song": "একবার বলি, বারবার বলি, বলি যে লক্ষবার... তুমি আমার প্রিয়তমা, তুমি যে আমার...",
-    "win": "পিরিয়ড নাম্বার {period} উইন! আমাদের সিগন্যাল ডিরেক্ট উইন হয়েছে! সবাই খুশি তো জান পাখিরা?",
-    "loss": "কোনো সমস্যা নাই, নেক্সট সিগন্যালে আমরা কোপ দিবো বেবি!"
+    "win": "পিরিয়ড নাম্বার {period} বিগ উইন! আমাদের সিগন্যাল ডিরেক্ট উইন হয়েছে! অভিনন্দন সবাইকে!",
+    "loss": "কোনো সমস্যা নেই বন্ধুরা, নেক্সট সিগন্যালে রিকভারি করে নিবো ইনশাআল্লাহ!"
 }
 
 def load_channels():
     if os.path.exists(CHANNELS_FILE):
         try:
-            with open(CHANNELS_FILE, "r") as f:
+            with open(CHANNELS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
     return {}
 
 def save_channels(data):
-    with open(CHANNELS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(CHANNELS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return DEFAULT_CONFIG
     return DEFAULT_CONFIG
 
 def save_config(data):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-# ================= HTML-এর আসল ডাটাবেস প্যাটার্ন =================
+# ================= ডাটাবেস প্যাটার্ন =================
 PATTERN_DB = {
     "SSBSSBSBB": "BIG", "BSBSBBSBS": "SMALL", "BSBSBBBSS": "BIG", "SSSBBBSSS": "SMALL", "SSSBSBBBS": "SMALL",
     "SBSSBSSBB": "BIG", "SBSSBSSBS": "BIG", "SBSBSSSBS": "SMALL", "SBBSBSSBS": "BIG", "BBSBBSSBB": "SMALL",
@@ -253,13 +254,20 @@ def process_ensemble_prediction(history_list):
 
     return final_pred, confidence
 
-# ================= কিউট ফিমেল ভয়েস ইঞ্জিন =================
-async def generate_sweet_girl_voice(text, filename="voice_output.mp3", pitch="+6Hz", rate="+4%"):
-    comm = edge_tts.Communicate(
-        text, voice="bn-IN-TanishaaNeural", rate=rate, pitch=pitch
-    )
-    await comm.save(filename)
-    return filename
+# ================= প্রফেশনাল মিষ্টি ভয়েস ইঞ্জিন =================
+# পরিবর্তন: bn-BD-NabanitaNeural (খাঁটি বাংলাদেশি ফিমেল মিষ্টি ও ক্লিয়ার ভয়েস)
+async def generate_sweet_girl_voice(text, filename=None, pitch="+1Hz", rate="+0%"):
+    if not filename:
+        filename = f"voice_{uuid.uuid4().hex[:8]}.mp3"
+    try:
+        comm = edge_tts.Communicate(
+            text, voice="bn-BD-NabanitaNeural", rate=rate, pitch=pitch
+        )
+        await comm.save(filename)
+        return filename
+    except Exception as e:
+        print(f"[TTS Error]: {e}")
+        return None
 
 # ================= গ্লোবাল ভ্যারিয়েবল =================
 bot = None
@@ -277,9 +285,10 @@ user_states = {}
 
 async def play_in_live(audio_file_path):
     global call_py, active_chat_id
-    if not active_chat_id:
+    if not active_chat_id or not audio_file_path or not os.path.exists(audio_file_path):
         return
     try:
+        # লাইভে জয়েন বা স্ট্রিম প্লে
         await call_py.join_group_call(
             int(active_chat_id),
             AudioPiped(audio_file_path)
@@ -291,22 +300,31 @@ async def play_in_live(audio_file_path):
                 AudioPiped(audio_file_path)
             )
         except Exception as err:
-            print(f"[Live Play Error]: {repr(err)}")
+            print(f"[Live Play Retry Error]: {repr(err)}")
+
+# ================= অ্যাসিঙ্ক API ডাটা ফেচিং =================
+async def fetch_lottery_history():
+    try:
+        timeout = aiohttp.ClientTimeout(total=4)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            url = f"{API_URL}?pageNo=1&pageSize=20&t={int(asyncio.get_event_loop().time() * 1000)}"
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json(content_type=None)
+                    return data.get("data", {}).get("list", [])
+    except Exception as err:
+        print(f"[API Fetch Error]: {err}")
+    return []
 
 # ================= লাইভ সিগন্যাল লুপ =================
 async def wingo_1min_live_engine():
     global last_period, current_pred, pending_check, is_running, active_chat_id
-    print(f">> Signal Engine চালু আছে: {active_chat_title} ({active_chat_id})")
+    print(f">> Signal Engine চালু: {active_chat_title} ({active_chat_id})")
 
     while is_running and active_chat_id:
         try:
             cfg = load_config()
-            res = requests.get(
-                f"{API_URL}?pageNo=1&pageSize=20&t={int(asyncio.get_event_loop().time() * 1000)}",
-                timeout=5,
-            )
-            data = res.json()
-            history = data.get("data", {}).get("list", [])
+            history = await fetch_lottery_history()
 
             if history:
                 latest = history[0]
@@ -323,7 +341,7 @@ async def wingo_1min_live_engine():
                                 period=last_3_digits_prev,
                                 number=actual_num
                             )
-                            v_file = await generate_sweet_girl_voice(win_speech, "win.mp3", pitch="+7Hz")
+                            v_file = await generate_sweet_girl_voice(win_speech, "win.mp3", pitch="+2Hz")
                             await play_in_live(v_file)
                             await asyncio.sleep(6)
                         else:
@@ -331,7 +349,7 @@ async def wingo_1min_live_engine():
                                 period=last_3_digits_prev,
                                 number=actual_num
                             )
-                            v_file = await generate_sweet_girl_voice(loss_speech, "loss.mp3", pitch="+5Hz")
+                            v_file = await generate_sweet_girl_voice(loss_speech, "loss.mp3", pitch="+1Hz")
                             await play_in_live(v_file)
                             await asyncio.sleep(5)
                     pending_check = False
@@ -353,16 +371,16 @@ async def wingo_1min_live_engine():
                         confidence=confidence
                     )
 
-                    print(f"\n[🚨 Signal] Period: {last_3_digits} | Pred: {current_pred} | Conf: {confidence}%")
-                    v_file = await generate_sweet_girl_voice(signal_speech, "signal.mp3", pitch="+6Hz")
+                    print(f"[🚨 Signal] Period: {last_3_digits} | Pred: {current_pred} | Conf: {confidence}%")
+                    v_file = await generate_sweet_girl_voice(signal_speech, "signal.mp3", pitch="+2Hz")
                     await play_in_live(v_file)
 
-                    # গান / রোমান্টিক লাইন
-                    await asyncio.sleep(14)
+                    # রোমান্টিক লাইন বা গান
+                    await asyncio.sleep(15)
                     if is_running and pending_check:
                         song_speech = cfg.get("song", DEFAULT_CONFIG["song"])
                         if song_speech.strip():
-                            song_file = await generate_sweet_girl_voice(song_speech, "song.mp3", pitch="+8Hz", rate="-2%")
+                            song_file = await generate_sweet_girl_voice(song_speech, "song.mp3", pitch="+2Hz", rate="-2%")
                             await play_in_live(song_file)
 
         except Exception as e:
@@ -380,7 +398,7 @@ def get_main_menu():
         f"📊 **বট স্ট্যাটাস:** {status}\n"
         f"🎯 **সিলেক্টেড চ্যানেল:** `{active_chat_title}`\n"
         f"🆔 **চ্যানেল আইডি:** `{active_chat_id or 'None'}`\n\n"
-        "নিচের বাটনগুলো দিয়ে সহজেই সম্পূর্ণ বট পরিচালনা করুন:"
+        "নিচের বাটনগুলো দিয়ে সহজে বট পরিচালনা করুন:"
     )
 
     buttons = [
@@ -417,34 +435,32 @@ async def callback_handler(event):
         text, buttons = get_main_menu()
         await event.edit(text, buttons=buttons)
 
-    # ১. লাইভে যেকোনো কাস্টম মেসেজ বলানো
+    # কাস্টম বার্তা
     elif data == "btn_speak_custom":
         if not is_running or not active_chat_id:
-            await event.answer("⚠️ আগে সিগন্যাল চালু করুন বা চ্যানেলে জয়েন করান!", alert=True)
+            await event.answer("⚠️ আগে সিগন্যাল চালু করুন!", alert=True)
             return
         user_states[sender_id] = "WAITING_CUSTOM_SPEECH"
         await event.edit(
-            "📢 **লাইভে যা বলতে চান বাংলায় লিখে মেসেজ পাঠান:**\n\n"
-            "উদাহরণ: `সবাই লাইভে লাইক দিন এবং সঠিকভাবে ট্রেড ধরুন!`",
+            "📢 **লাইভে যা বলতে চান বাংলায় লিখে মেসেজ পাঠান:**",
             buttons=[[Button.inline("🔙 ব্যাকে যান", b"btn_back_main")]]
         )
 
-    # ২. ডায়লগ এডিটর মেনু
+    # ডায়লগ এডিটর
     elif data == "btn_edit_dialogues":
         cfg = load_config()
         text = (
             "📝 **ডায়লগ এডিটর প্যানেল**\n\n"
-            "নিচের যেকোনো ডায়লগ পরিবর্তনের জন্য বাটনে ক্লিক করুন:\n\n"
-            f"1️⃣ **Welcome:** `{cfg.get('welcome')[:40]}...`\n"
-            f"2️⃣ **Signal:** `{cfg.get('signal_template')[:40]}...`\n"
-            f"3️⃣ **Song:** `{cfg.get('song')[:40]}...`\n"
-            f"4️⃣ **Win:** `{cfg.get('win')[:40]}...`\n"
-            f"5️⃣ **Loss:** `{cfg.get('loss')[:40]}...`"
+            f"1️⃣ **Welcome:** `{cfg.get('welcome')[:35]}...`\n"
+            f"2️⃣ **Signal:** `{cfg.get('signal_template')[:35]}...`\n"
+            f"3️⃣ **Song:** `{cfg.get('song')[:35]}...`\n"
+            f"4️⃣ **Win:** `{cfg.get('win')[:35]}...`\n"
+            f"5️⃣ **Loss:** `{cfg.get('loss')[:35]}...`"
         )
         buttons = [
-            [Button.inline("✏️ Welcome মেসেজ", b"edit_welcome"), Button.inline("✏️ Signal টেমপ্লেট", b"edit_signal")],
-            [Button.inline("✏️ Song / গান লাইন", b"edit_song"), Button.inline("✏️ Win মেসেজ", b"edit_win")],
-            [Button.inline("✏️ Loss মেসেজ", b"edit_loss"), Button.inline("🔄 রিসেট ডিফল্ট", b"edit_reset")],
+            [Button.inline("✏️ Welcome", b"edit_welcome"), Button.inline("✏️ Signal", b"edit_signal")],
+            [Button.inline("✏️ Song", b"edit_song"), Button.inline("✏️ Win", b"edit_win")],
+            [Button.inline("✏️ Loss", b"edit_loss"), Button.inline("🔄 রিসেট", b"edit_reset")],
             [Button.inline("🔙 মূল মেনু", b"btn_back_main")]
         ]
         await event.edit(text, buttons=buttons)
@@ -453,7 +469,7 @@ async def callback_handler(event):
         action = data.replace("edit_", "")
         if action == "reset":
             save_config(DEFAULT_CONFIG)
-            await event.answer("✅ সব ডায়লগ ডিফল্ট করে দেওয়া হয়েছে!", alert=True)
+            await event.answer("✅ ডিফল্ট ডায়লগ রিস্টোর হয়েছে!", alert=True)
             text, buttons = get_main_menu()
             await event.edit(text, buttons=buttons)
             return
@@ -461,30 +477,30 @@ async def callback_handler(event):
         user_states[sender_id] = f"SETTING_DIALOGUE_{action.upper()}"
         hint = ""
         if action == "signal":
-            hint = "\n⚠️ মনে রাখবেন `{signal}`, `{period}`, `{confidence}` এই কোডগুলো লেখার মধ্যে রাখবেন।"
+            hint = "\n⚠️ `{signal}`, `{period}`, `{confidence}` কোডগুলো ব্যবহার করবেন।"
         elif action in ["win", "loss"]:
-            hint = "\n⚠️ মনে রাখবেন `{period}` কোডটি লেখার মধ্যে রাখবেন।"
+            hint = "\n⚠️ `{period}` কোডটি ব্যবহার করবেন।"
 
         await event.edit(
-            f"✍️ **নতুন {action.upper()} ডায়লগটি লিখে নিচে পাঠান:**{hint}",
+            f"✍️ **নতুন {action.upper()} ডায়লগটি লিখে পাঠান:**{hint}",
             buttons=[[Button.inline("🔙 ব্যাকে যান", b"btn_edit_dialogues")]]
         )
 
-    # ৩. চ্যানেল অ্যাড
+    # চ্যানেল অ্যাড
     elif data == "btn_add_channel":
         user_states[sender_id] = "WAITING_CHANNEL_DATA"
         await event.edit(
-            "➕ **নতুন চ্যানেল যোগ করতে নিচে মেসেজ পাঠান:**\n\n"
-            "ফরম্যাট: `চ্যানেল নাম | চ্যানেল আইডি`\n"
-            "উদাহরণ:\n`VIP Group 1 | -1004378457331`",
+            "➕ **নতুন চ্যানেল যোগ করার নিয়ম:**\n\n"
+            "ফরম্যাট: `নাম | আইডি`\n"
+            "উদাহরণ:\n`VIP Group | -1004378457331`",
             buttons=[[Button.inline("🔙 ব্যাকে যান", b"btn_back_main")]]
         )
 
-    # ৪. চ্যানেল সিলেক্ট
+    # চ্যানেল সিলেক্ট
     elif data == "btn_select_channel":
         channels = load_channels()
         if not channels:
-            await event.edit("❌ কোনো চ্যানেল নেই! আগে চ্যানেল অ্যাড করুন।", buttons=[[Button.inline("🔙 ব্যাকে যান", b"btn_back_main")]])
+            await event.edit("❌ কোনো চ্যানেল লিস্ট নেই! আগে চ্যানেল অ্যাড করুন।", buttons=[[Button.inline("🔙 ব্যাকে যান", b"btn_back_main")]])
             return
 
         buttons = []
@@ -492,7 +508,7 @@ async def callback_handler(event):
             mark = "✅ " if str(cid) == str(active_chat_id) else ""
             buttons.append([Button.inline(f"{mark}{name}", f"set_chan_{cid}".encode())])
         buttons.append([Button.inline("🔙 ব্যাকে যান", b"btn_back_main")])
-        await event.edit("🎯 **যে চ্যানেলে সিগন্যাল দিতে চান সিলেক্ট করুন:**", buttons=buttons)
+        await event.edit("🎯 **চ্যানেল সিলেক্ট করুন:**", buttons=buttons)
 
     elif data.startswith("set_chan_"):
         cid = data.replace("set_chan_", "")
@@ -503,9 +519,9 @@ async def callback_handler(event):
                 active_chat_title = name
                 break
         text, buttons = get_main_menu()
-        await event.edit(f"✅ **চ্যানেল সেট হয়েছে:** `{active_chat_title}`", buttons=buttons)
+        await event.edit(f"✅ **সিলেক্টেড চ্যানেল:** `{active_chat_title}`", buttons=buttons)
 
-    # ৫. চ্যানেল ডিলিট
+    # চ্যানেল ডিলিট
     elif data == "btn_delete_channel":
         channels = load_channels()
         if not channels:
@@ -516,7 +532,7 @@ async def callback_handler(event):
         for name, cid in channels.items():
             buttons.append([Button.inline(f"🗑️ {name}", f"del_chan_{name}".encode())])
         buttons.append([Button.inline("🔙 ব্যাকে যান", b"btn_back_main")])
-        await event.edit("🗑️ **কোন চ্যানেল মুছে ফেলতে চান সিলেক্ট করুন:**", buttons=buttons)
+        await event.edit("🗑️ **যে চ্যানেলটি মুছতে চান ক্লিক করুন:**", buttons=buttons)
 
     elif data.startswith("del_chan_"):
         name_to_del = data.replace("del_chan_", "")
@@ -528,33 +544,33 @@ async def callback_handler(event):
                 active_chat_id = None
                 active_chat_title = "None"
         text, buttons = get_main_menu()
-        await event.edit(f"🗑️ `{name_to_del}` চ্যানেল মুছে ফেলা হয়েছে!", buttons=buttons)
+        await event.edit(f"🗑️ `{name_to_del}` রিমুভ করা হয়েছে!", buttons=buttons)
 
-    # ৬. সিগন্যাল স্টার্ট
+    # সিগন্যাল স্টার্ট
     elif data == "btn_start_signal":
         if not active_chat_id:
             await event.answer("⚠️ আগে চ্যানেল সিলেক্ট করুন!", alert=True)
             return
         if is_running:
-            await event.answer("⚠️ সিগন্যাল ইতিমধ্যেই চালু আছে!", alert=True)
+            await event.answer("⚠️ সিগন্যাল ইতিমধ্যে চালু আছে!", alert=True)
             return
 
         is_running = True
-        await event.answer("🚀 লাইভ সিগন্যাল চালু হচ্ছে...", alert=True)
+        await event.answer("🚀 সিগন্যাল চালু হচ্ছে...", alert=True)
         text, buttons = get_main_menu()
         await event.edit(text, buttons=buttons)
 
         try:
             cfg = load_config()
             welcome_intro = cfg.get("welcome", DEFAULT_CONFIG["welcome"])
-            welcome_audio = await generate_sweet_girl_voice(welcome_intro, "welcome.mp3", pitch="+6Hz")
+            welcome_audio = await generate_sweet_girl_voice(welcome_intro, "welcome.mp3", pitch="+2Hz")
             await play_in_live(welcome_audio)
         except Exception as e:
             print(f"[Join Error]: {e}")
 
         asyncio.create_task(wingo_1min_live_engine())
 
-    # ৭. সিগন্যাল স্টপ
+    # সিগন্যাল স্টপ
     elif data == "btn_stop_signal":
         if not is_running:
             await event.answer("⚠️ সিগন্যাল বন্ধ আছে!", alert=True)
@@ -571,7 +587,7 @@ async def callback_handler(event):
         text, buttons = get_main_menu()
         await event.edit(text, buttons=buttons)
 
-# ================= টেক্সট মেসেজ প্রসেসর =================
+# ================= টেক্সট মেসেজ হ্যান্ডলার =================
 async def text_handler(event):
     sender_id = event.sender_id
     state = user_states.get(sender_id)
@@ -581,32 +597,39 @@ async def text_handler(event):
 
     text = event.text.strip()
 
-    # ১. লাইভে কাস্টম কথা বলা
+    # ১. লাইভে বার্তা
     if state == "WAITING_CUSTOM_SPEECH":
         user_states[sender_id] = None
         await event.respond("🎙️ লাইভে বলা হচ্ছে...")
-        v_file = await generate_sweet_girl_voice(text, "custom_speech.mp3", pitch="+6Hz")
+        v_file = await generate_sweet_girl_voice(text, "custom_speech.mp3", pitch="+2Hz")
         await play_in_live(v_file)
-        await event.respond("✅ **লাইভে বার্তা সফলভাবে বাজানো হয়েছে!**")
+        await event.respond("✅ **বার্তা বাজানো হয়েছে!**")
         m_text, buttons = get_main_menu()
         await event.respond(m_text, buttons=buttons)
 
     # ২. চ্যানেল অ্যাড
     elif state == "WAITING_CHANNEL_DATA":
         if "|" in text:
-            name, cid = text.split("|")
-            name, cid = name.strip(), cid.strip()
-            channels = load_channels()
-            channels[name] = cid
-            save_channels(channels)
-            user_states[sender_id] = None
-            await event.respond(f"✅ **চ্যানেল সেভ হয়েছে:** `{name}` (`{cid}`)")
-            m_text, buttons = get_main_menu()
-            await event.respond(m_text, buttons=buttons)
+            try:
+                parts = text.split("|")
+                name = parts[0].strip()
+                cid_raw = parts[1].strip()
+                cid = int(cid_raw)  # চ্যানেল আইডি ইন্টিজার হিসেবে নিশ্চিত করা
+                
+                channels = load_channels()
+                channels[name] = str(cid)
+                save_channels(channels)
+                
+                user_states[sender_id] = None
+                await event.respond(f"✅ **চ্যানেল সফলভাবে অ্যাড হয়েছে:**\n🏷️ নাম: `{name}`\n🆔 আইডি: `{cid}`")
+                m_text, buttons = get_main_menu()
+                await event.respond(m_text, buttons=buttons)
+            except ValueError:
+                await event.respond("❌ ভুল আইডি ফরম্যাট! চ্যানেল আইডি অবশ্যই নাম্বার হতে হবে (যেমন: `-1004378457331`)।")
         else:
-            await event.respond("❌ ফরম্যাট ভুল! নাম এবং আইডির মাঝে `|` চিহ্ন দিন।")
+            await event.respond("❌ ফরম্যাট ভুল! নাম এবং আইডির মাঝে `|` চিহ্ন দিন।\nউদাহরণ: `VIP | -1004378457331`")
 
-    # ৩. ডায়লগ পরিবর্তন সেভ করা
+    # ৩. ডায়লগ পরিবর্তন
     elif state.startswith("SETTING_DIALOGUE_"):
         key = state.replace("SETTING_DIALOGUE_", "").lower()
         if key == "signal":
@@ -615,11 +638,11 @@ async def text_handler(event):
         cfg[key] = text
         save_config(cfg)
         user_states[sender_id] = None
-        await event.respond(f"✅ **{key.upper()} ডায়লগ সফলভাবে আপডেট হয়েছে!**")
+        await event.respond(f"✅ **{key.upper()} ডায়লগ সফলভাবে সেভ হয়েছে!**")
         m_text, buttons = get_main_menu()
         await event.respond(m_text, buttons=buttons)
 
-# ক্লাউড সার্ভার সচল রাখা (Render Port 8080)
+# সার্ভার অ্যাক্টিভ রাখা (Render / Koyeb)
 async def keep_alive():
     server = web.Application()
     server.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
@@ -628,13 +651,12 @@ async def keep_alive():
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+
 async def main():
     global bot, assistant, call_py
 
-    # ১. সবার আগে ক্লাউড সার্ভার পোর্ট ওপেন করা (যাতে Render সাথে সাথে ডিটেক্ট করে)
     await keep_alive()
 
-    # ২. টেলিগ্রাম ও ভয়েস ক্লায়েন্ট শুরু
     bot = TelegramClient("signal_bot_session", API_ID, API_HASH)
     assistant = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
     call_py = PyTgCalls(assistant)
@@ -648,10 +670,9 @@ async def main():
     await call_py.start()
     
     print("==================================================")
-    print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE!")
+    print(" 🎛️ REAL PAPA VIP CONTROLLER ONLINE (FIXED)!")
     print("==================================================")
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
